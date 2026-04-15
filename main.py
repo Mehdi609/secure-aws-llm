@@ -1,17 +1,32 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import json
 import re
 import os
-from typing import Tuple, Dict
+from dotenv import load_dotenv
+from typing import Tuple, Dict, Any
 from datetime import datetime, UTC
 from uuid import uuid4
 from pymongo import MongoClient, ReturnDocument
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
+load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "chat_db")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
+def get_current_user(authorization: str = Header(None)) -> Dict[str, Any]:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+    token = authorization.split(" ")[1]
+    try:
+        idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+        return idinfo
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Token")
 
 client = MongoClient(MONGO_URI)
 db = client[MONGO_DB_NAME]
@@ -120,8 +135,9 @@ User request:
 
 def call_llama(prompt: str) -> str:
     styled_prompt = build_styled_prompt(prompt)
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
     response = requests.post(
-        "http://localhost:11434/api/generate",
+        f"{ollama_url}/api/generate",
         json={
             "model": "dolphin-llama3",
             "prompt": styled_prompt,
@@ -194,17 +210,17 @@ def build_chat_summary(chat: Dict) -> Dict:
     }
 
 
-def get_chat_or_404(chat_id: str, projection: Dict | None = None) -> Dict:
-    chat = chats_collection.find_one({"id": chat_id}, projection or {"_id": 0})
+def get_chat_or_404(chat_id: str, user_id: str, projection: Dict | None = None) -> Dict:
+    chat = chats_collection.find_one({"id": chat_id, "user_id": user_id}, projection or {"_id": 0})
     if not chat:
         raise HTTPException(status_code=404, detail=CHAT_NOT_FOUND)
     chat.pop("_id", None)
     return chat
 
 
-def reserve_next_seq(chat_id: str) -> int:
+def reserve_next_seq(chat_id: str, user_id: str) -> int:
     chat = chats_collection.find_one_and_update(
-        {"id": chat_id},
+        {"id": chat_id, "user_id": user_id},
         {"$inc": {"next_seq": 1}},
         projection={"_id": 0, "next_seq": 1},
         return_document=ReturnDocument.AFTER,
@@ -214,8 +230,8 @@ def reserve_next_seq(chat_id: str) -> int:
     return int(chat["next_seq"])
 
 
-def append_message(chat_id: str, role: str, content: str, timestamp: str) -> Dict:
-    seq = reserve_next_seq(chat_id)
+def append_message(chat_id: str, user_id: str, role: str, content: str, timestamp: str) -> Dict:
+    seq = reserve_next_seq(chat_id, user_id)
     message_doc = {
         "chat_id": chat_id,
         "seq": seq,
@@ -233,10 +249,13 @@ def append_message(chat_id: str, role: str, content: str, timestamp: str) -> Dic
 
 
 @app.get("/chats")
-def list_chats(limit: int = Query(DEFAULT_CHAT_LIST_LIMIT, ge=1, le=MAX_CHAT_LIST_LIMIT)):
+def list_chats(
+    limit: int = Query(DEFAULT_CHAT_LIST_LIMIT, ge=1, le=MAX_CHAT_LIST_LIMIT),
+    current_user: dict = Depends(get_current_user)
+):
     chats = list(
         chats_collection.find(
-            {},
+            {"user_id": current_user["sub"]},
             {
                 "_id": 0,
                 "id": 1,
@@ -251,11 +270,12 @@ def list_chats(limit: int = Query(DEFAULT_CHAT_LIST_LIMIT, ge=1, le=MAX_CHAT_LIS
 
 
 @app.post("/chats")
-def create_chat():
+def create_chat(current_user: dict = Depends(get_current_user)):
     chat_id = str(uuid4())
     timestamp = now_iso()
     chat_doc = {
         "id": chat_id,
+        "user_id": current_user["sub"],
         "title": DEFAULT_CHAT_TITLE,
         "created_at": timestamp,
         "updated_at": timestamp,
@@ -270,9 +290,11 @@ def get_chat(
     chat_id: str,
     limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     before_seq: int | None = Query(None, ge=1),
+    current_user: dict = Depends(get_current_user)
 ):
     chat_meta = get_chat_or_404(
         chat_id,
+        current_user["sub"],
         {
             "_id": 0,
             "id": 1,
@@ -330,8 +352,9 @@ def get_chat(
 
 
 @app.delete("/chats/{chat_id}")
-def delete_chat(chat_id: str):
-    result = chats_collection.delete_one({"id": chat_id})
+def delete_chat(chat_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["sub"]
+    result = chats_collection.delete_one({"id": chat_id, "user_id": user_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=CHAT_NOT_FOUND)
     messages_collection.delete_many({"chat_id": chat_id})
@@ -342,41 +365,32 @@ def delete_chat(chat_id: str):
 # MAIN API
 # -----------------------
 @app.post("/chat")
-def chat(data: dict):
+def chat(data: dict, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["sub"]
     user_input = data.get("message", "").strip()
     chat_id = data.get("chat_id", "").strip()
     if not user_input:
         raise HTTPException(status_code=400, detail="Empty message.")
     if not chat_id:
         raise HTTPException(status_code=400, detail="chat_id is required.")
-    chat_meta = get_chat_or_404(chat_id, {"_id": 0, "id": 1, "title": 1})
-
-    # 1) Input safety check
-    #ok, reason = safety_check(user_input)
-    #if not ok:
-    #    raise HTTPException(status_code=400, detail=reason)
+    chat_meta = get_chat_or_404(chat_id, user_id, {"_id": 0, "id": 1, "title": 1})
 
     user_timestamp = now_iso()
-    user_message = append_message(chat_id, "user", user_input, user_timestamp)
+    user_message = append_message(chat_id, user_id, "user", user_input, user_timestamp)
 
     if chat_meta["title"] == DEFAULT_CHAT_TITLE:
         chats_collection.update_one(
-            {"id": chat_id, "title": DEFAULT_CHAT_TITLE},
+            {"id": chat_id, "user_id": user_id, "title": DEFAULT_CHAT_TITLE},
             {"$set": {"title": make_title(user_input)}},
         )
 
-    # 2) Call model with stream parser
+    # Call model with stream parser
     model_text = call_llama(user_input)
 
-    # 3) Output safety check
-    #ok, _ = safety_check(model_text)
-    #if not ok:
-    #    model_text = "I can’t help with harmful or illegal instructions. I can help with legal alternatives instead."
-
     assistant_timestamp = now_iso()
-    assistant_message = append_message(chat_id, "assistant", model_text, assistant_timestamp)
-    chats_collection.update_one({"id": chat_id}, {"$set": {"updated_at": assistant_timestamp}})
-    updated_chat = get_chat_or_404(chat_id, {"_id": 0, "id": 1, "title": 1, "updated_at": 1})
+    assistant_message = append_message(chat_id, user_id, "assistant", model_text, assistant_timestamp)
+    chats_collection.update_one({"id": chat_id, "user_id": user_id}, {"$set": {"updated_at": assistant_timestamp}})
+    updated_chat = get_chat_or_404(chat_id, user_id, {"_id": 0, "id": 1, "title": 1, "updated_at": 1})
 
     return {
         "response": model_text,

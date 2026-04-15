@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import { GoogleLogin, googleLogout } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
 
 const API_BASE = "http://localhost:8000";
 
@@ -16,6 +18,32 @@ function formatTimestamp(value) {
 }
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem("token") || null);
+  const [user, setUser] = useState(() => {
+    try {
+      return token ? jwtDecode(token) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleLoginSuccess = (credentialResponse) => {
+    const t = credentialResponse.credential;
+    setToken(t);
+    localStorage.setItem("token", t);
+    setUser(jwtDecode(t));
+  };
+
+  const handleLogout = () => {
+    googleLogout();
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem("token");
+    setChatHistory([]);
+    setMessages([]);
+    setActiveChatId("");
+  };
+
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [chatHistory, setChatHistory] = useState([]);
@@ -30,51 +58,80 @@ function App() {
     return chatHistory.filter((chat) => chat.title.toLowerCase().includes(q));
   }, [chatHistory, searchQuery]);
 
-  const fetchChats = async () => {
-    const res = await fetch(`${API_BASE}/chats`);
-    const data = await res.json();
-    const chats = data.chats || [];
-    setChatHistory(chats);
-    return chats;
-  };
-
-  const loadChat = async (chatId) => {
-    if (!chatId) return;
-    setActiveChatId(chatId);
-    const res = await fetch(`${API_BASE}/chats/${chatId}`);
-    const data = await res.json();
-    if (data.chat?.messages) {
-      setMessages(data.chat.messages);
-    } else {
-      setMessages([]);
+  const fetchWithAuth = useCallback(async (url, options = {}) => {
+    const headers = {
+      ...(options.headers || {}),
+      "Authorization": `Bearer ${token}`
+    };
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      handleLogout();
+      return null; // Will cause JSON parsing to fail implicitly handled below by optional chaining. Better to throw but let's just keep it simple.
     }
-  };
+    return res;
+  }, [token]);
+
+  const fetchChats = useCallback(async () => {
+    if (!token) return [];
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/chats`);
+      if (!res) return [];
+      const data = await res.json();
+      const chats = data.chats || [];
+      setChatHistory(chats);
+      return chats;
+    } catch (e) {
+      return [];
+    }
+  }, [token, fetchWithAuth]);
+
+  const loadChat = useCallback(async (chatId) => {
+    if (!chatId || !token) return;
+    setActiveChatId(chatId);
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/chats/${chatId}`);
+      if (!res) return;
+      const data = await res.json();
+      if (data.chat?.messages) {
+        setMessages(data.chat.messages);
+      } else {
+        setMessages([]);
+      }
+    } catch (e) {}
+  }, [token, fetchWithAuth]);
 
   const createNewChat = async () => {
-    if (isLoading) return;
-    const res = await fetch(`${API_BASE}/chats`, { method: "POST" });
-    const data = await res.json();
-    const created = data.chat;
-    if (!created?.id) return;
-    await fetchChats();
-    await loadChat(created.id);
+    if (isLoading || !token) return;
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/chats`, { method: "POST" });
+      if (!res) return;
+      const data = await res.json();
+      const created = data.chat;
+      if (!created?.id) return;
+      await fetchChats();
+      await loadChat(created.id);
+    } catch (e) {}
   };
 
   const removeChat = async (chatId) => {
-    const res = await fetch(`${API_BASE}/chats/${chatId}`, {
-      method: "DELETE",
-    });
-    const data = await res.json();
-    if (!data.ok) return;
-    const chats = await fetchChats();
-    if (chatId === activeChatId) {
-      if (chats.length > 0) {
-        await loadChat(chats[0].id);
-      } else {
-        setActiveChatId("");
-        setMessages([]);
+    if (!token) return;
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/chats/${chatId}`, {
+        method: "DELETE",
+      });
+      if (!res) return;
+      const data = await res.json();
+      if (!data.ok) return;
+      const chats = await fetchChats();
+      if (chatId === activeChatId) {
+        if (chats.length > 0) {
+          await loadChat(chats[0].id);
+        } else {
+          setActiveChatId("");
+          setMessages([]);
+        }
       }
-    }
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -86,9 +143,11 @@ function App() {
         await createNewChat();
       }
     };
-    init();
+    if (token) {
+      init();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const sendMessage = async () => {
     const trimmedMessage = message.trim();
@@ -103,22 +162,45 @@ function App() {
     setMessage("");
     setIsLoading(true);
 
-    const res = await fetch(`${API_BASE}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmedMessage, chat_id: activeChatId }),
-    });
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmedMessage, chat_id: activeChatId }),
+      });
+      if (!res) return;
 
-    const data = await res.json();
+      const data = await res.json();
     const aiReply = data.response || data.error || "No response received.";
     if (data.chat?.messages) {
       setMessages(data.chat.messages);
     } else {
       setMessages((prev) => [...prev, { role: "assistant", content: aiReply }]);
     }
-    await fetchChats();
-    setIsLoading(false);
+      await fetchChats();
+    } catch (e) {} finally {
+      setIsLoading(false);
+    }
   };
+
+  if (!token) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black px-4">
+        <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-gray-900 p-8 text-center shadow-xl shadow-black/50">
+          <h1 className="mb-2 text-3xl font-bold text-white">Dolphin LLM</h1>
+          <p className="mb-8 text-gray-400">Sign in to start your AI sessions</p>
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleLoginSuccess}
+              onError={() => console.error("Login Failed")}
+              theme="filled_blue"
+              shape="pill"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-black text-white">
@@ -192,12 +274,27 @@ function App() {
             >
               {isSidebarOpen ? "←" : "→"}
             </button>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-semibold text-white">Dolphin LLM</h1>
               <p className="mt-1 text-sm text-gray-400">
                 Ask anything and get instant AI-powered answers.
               </p>
             </div>
+            {user && (
+              <div className="flex items-center gap-3">
+                <img
+                  src={user.picture}
+                  alt="Profile"
+                  className="h-8 w-8 rounded-full border border-gray-700"
+                />
+                <button
+                  onClick={handleLogout}
+                  className="rounded-lg border border-gray-700 bg-black px-3 py-1 text-sm text-gray-300 hover:bg-gray-800"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
           </header>
 
           <main className="flex-1 overflow-hidden rounded-2xl border border-gray-800 bg-gray-900 shadow-xl shadow-black/40">
