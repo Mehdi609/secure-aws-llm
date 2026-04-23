@@ -1,54 +1,67 @@
-version: '3.8'
+version: '3.9'
 
 services:
-  # MongoDB Database Service
   mongodb:
     image: mongo:latest
     container_name: mongodb
-    restart: always # Production grade restart policy
+    restart: unless-stopped
     ports:
       - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-example}
     volumes:
-      - mongodb_data:/data/db # Persists data between restarts
+      - mongodb_data:/data/db
     networks:
       - ai-network
 
-  # Backend (FastAPI) Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - ai-network
+
   backend:
     build: 
       context: .
       dockerfile: Dockerfile
     container_name: ai_backend
-    restart: always
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      # Connects to MongoDB within the docker network using the service name
-      - MONGO_URI=mongodb://mongodb:27017
-      - MONGO_DB_NAME=chat_db
-      # Using host.docker.internal to access Ollama running natively on the Mac host
-      - OLLAMA_URL=http://host.docker.internal:11434 
-      # Include your Google Auth Client ID here for production validation
+      - MONGO_URI=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongodb:27017/chat_db?authSource=admin
+      - AI_BASE_URL=http://ollama:11434
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     depends_on:
       - mongodb
+      - ollama
     networks:
       - ai-network
 
-  # Frontend (React) Service
   frontend:
     build: 
       context: ./ai-ui
       dockerfile: Dockerfile
     container_name: ai_frontend
-    restart: always
+    restart: unless-stopped
     ports:
-      - "3000:80" # Exposed on 3000 (standard for React), but hits Nginx 80 inside container
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://backend:8000
+    depends_on:
+      - backend
     networks:
       - ai-network
 
 volumes:
   mongodb_data:
+  ollama_models:
 
 networks:
   ai-network:
