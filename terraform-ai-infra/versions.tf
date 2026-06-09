@@ -1,0 +1,35 @@
+terraform {
+  required_version = "~> 1.6"
+
+  backend "s3" {
+    bucket         = "securellm-tfstate-elmehdi-2026"
+    key            = "SecureLLM/prod/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "tf-state-lock"
+    encrypt        = true
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.region
+
+  default_tags {
+    tags = local.common_tags
+  }
+}
+
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = local.common_tags
+  }
+}

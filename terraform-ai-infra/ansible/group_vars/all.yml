@@ -1,0 +1,14 @@
+---
+# Match terraform.tfvars: project_name + environment
+ec2_name_tag: SecureLLM-prod-app
+aws_region: us-west-1
+ansible_aws_ssm_bucket_name: frontend-files-prod-static
+ansible_aws_ssm_bucket_sse_mode: AES256
+
+frontend_image: mehdi609/ai-frontend:v1
+backend_image: mehdi609/ai-backend:v1
+frontend_port: 3000
+backend_port: 8000
+
+# Nginx listens on 80 for ALB; /health stays local for target group checks.
+api_location_prefix: /api/

@@ -1,0 +1,36 @@
+# Dynamic inventory: all running app instances (both AZs) via EC2 tags.
+# Connection: Session Manager (no SSH keys, works in private subnets).
+#
+# Prerequisites on your laptop:
+#   aws configure  (or AWS_PROFILE)
+#   session-manager-plugin
+#   ansible-galaxy collection install -r requirements.yml
+#
+# Verify: ansible-inventory --graph
+
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-west-1
+
+filters:
+  tag:Name: SecureLLM-prod-app
+  instance-state-name: running
+
+hostnames:
+  - instance-id
+
+compose:
+  ansible_host: instance_id
+  ansible_connection: '"amazon.aws.aws_ssm"'
+  ansible_aws_ssm_region: '"us-west-1"'
+  instance_name: tags.Name
+  instance_az: placement.availability_zone
+
+groups:
+  ai_platform: true
+
+keyed_groups:
+  - key: placement.availability_zone
+    prefix: az
+    separator: ""

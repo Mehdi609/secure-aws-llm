@@ -1,0 +1,18 @@
+---
+# Configure every running app EC2 instance in parallel (both AZs).
+# serial: 0 is the default — all hosts at once. Use serial: 1 for rolling updates.
+
+- name: Deploy AI containers and nginx on EC2 fleet
+  hosts: ai_platform
+  become: true
+  gather_facts: true
+  serial: 0
+
+  pre_tasks:
+    - name: Show target hosts and AZ
+      ansible.builtin.debug:
+        msg: "Configuring {{ inventory_hostname }} in {{ instance_az | default('unknown') }}"
+      tags: always
+
+  roles:
+    - role: ai_stack

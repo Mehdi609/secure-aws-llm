@@ -1,0 +1,3 @@
+---
+frontend_container_name: ai-frontend
+backend_container_name: ai-backend

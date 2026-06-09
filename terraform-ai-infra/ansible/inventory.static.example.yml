@@ -1,0 +1,20 @@
+# Fallback if dynamic EC2 inventory is unavailable.
+# Copy to inventory.static.yml and replace instance IDs from:
+#   aws ec2 describe-instances --region us-west-1 \
+#     --filters "Name=tag:Name,Values=SecureLLM-prod-app" "Name=instance-state-name,Values=running" \
+#     --query "Reservations[].Instances[].[InstanceId,Placement.AvailabilityZone]" --output table
+
+all:
+  children:
+    ai_platform:
+      hosts:
+        i-REPLACE_AZ_A:
+          ansible_host: i-REPLACE_AZ_A
+          ansible_connection: amazon.aws.aws_ssm
+          ansible_aws_ssm_region: us-west-1
+          instance_az: us-west-1a
+        i-REPLACE_AZ_B:
+          ansible_host: i-REPLACE_AZ_B
+          ansible_connection: amazon.aws.aws_ssm
+          ansible_aws_ssm_region: us-west-1
+          instance_az: us-west-1c
