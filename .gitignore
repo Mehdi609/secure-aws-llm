@@ -52,6 +52,9 @@ yarn-error.log
 yarn-debug.log
 .pnp
 .pnp.js
+.terraform/
+**/.terraform/
+**/node_modules/
 
 # Frontend builds
 build/
