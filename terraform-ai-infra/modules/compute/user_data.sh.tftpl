@@ -1,8 +1,18 @@
 #!/bin/bash
-set -euo pipefail
+set -eux pipefail
+
+# yum update -y
+# yum install -y amazon-cloudwatch-agent nginx
 
 yum update -y
-yum install -y amazon-cloudwatch-agent nginx
+
+amazon-linux-extras enable nginx1
+yum clean metadata
+
+yum install -y nginx amazon-cloudwatch-agent
+
+
+
 
 cat >/etc/nginx/nginx.conf <<'NGINX'
 user nginx;
