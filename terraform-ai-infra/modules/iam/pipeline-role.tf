@@ -1,16 +1,44 @@
 # PipelineDeployRole — CI/CD via OIDC (GitHub Actions / GitLab / Jenkins).
 # Deploy-only: ECR, SSM Run Command, artifacts S3, Secrets Manager read. No infra create / IAM admin.
 
+# locals {
+#   pipeline_oidc_audience_claim = coalesce(
+#     var.oidc_audience_claim,
+#     can(regex("token\\.actions\\.githubusercontent\\.com", coalesce(var.oidc_provider_arn, "")))
+#     ? "token.actions.githubusercontent.com:aud"
+#     : null
+#   )
+#   pipeline_oidc_subject_claim = coalesce(
+#     var.oidc_subject_claim,
+#     can(regex("token\\.actions\\.githubusercontent\\.com", coalesce(var.oidc_provider_arn, "")))
+#     ? "token.actions.githubusercontent.com:sub"
+#     : null
+#   )
+
+
+
+#   pipeline_create_enabled = (
+#     var.enable_pipeline_role
+#     && var.oidc_provider_arn != null
+#     && length(var.oidc_subject_claims) > 0
+#     && local.pipeline_oidc_audience_claim != null
+#     && local.pipeline_oidc_subject_claim != null
+#   )
+
+#   pipeline_target_tag_value = coalesce(var.target_instance_tag_value, var.project_name)
+# }
+
 locals {
-  pipeline_oidc_audience_claim = coalesce(
-    var.oidc_audience_claim,
-    can(regex("token\\.actions\\.githubusercontent\\.com", coalesce(var.oidc_provider_arn, "")))
+  pipeline_oidc_audience_claim = var.oidc_audience_claim != null ? var.oidc_audience_claim : (
+    var.oidc_provider_arn != null &&
+    can(regex("token\\.actions\\.githubusercontent\\.com", var.oidc_provider_arn))
     ? "token.actions.githubusercontent.com:aud"
     : null
   )
-  pipeline_oidc_subject_claim = coalesce(
-    var.oidc_subject_claim,
-    can(regex("token\\.actions\\.githubusercontent\\.com", coalesce(var.oidc_provider_arn, "")))
+
+  pipeline_oidc_subject_claim = var.oidc_subject_claim != null ? var.oidc_subject_claim : (
+    var.oidc_provider_arn != null &&
+    can(regex("token\\.actions\\.githubusercontent\\.com", var.oidc_provider_arn))
     ? "token.actions.githubusercontent.com:sub"
     : null
   )

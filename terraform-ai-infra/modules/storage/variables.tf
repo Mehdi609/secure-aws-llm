@@ -6,15 +6,27 @@ variable "static_bucket_name" {
   type = string
 }
 
-variable "dynamodb_table_name" {
+# variable "dynamodb_table_name" {
+#   type = string
+# }
+
+# variable "dynamodb_hash_key" {
+#   type = string
+# }
+
+# variable "dynamodb_hash_key_type" {
+#   type = string
+# }
+
+variable "users_table_name" {
   type = string
 }
 
-variable "dynamodb_hash_key" {
+variable "chats_table_name" {
   type = string
 }
 
-variable "dynamodb_hash_key_type" {
+variable "messages_table_name" {
   type = string
 }
 

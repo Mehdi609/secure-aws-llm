@@ -41,14 +41,15 @@ resource "aws_s3_bucket_ownership_controls" "static" {
   }
 }
 
-resource "aws_dynamodb_table" "this" {
-  name         = var.dynamodb_table_name
+resource "aws_dynamodb_table" "users" {
+  name         = var.users_table_name
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = var.dynamodb_hash_key
+
+  hash_key = "user_id"
 
   attribute {
-    name = var.dynamodb_hash_key
-    type = var.dynamodb_hash_key_type
+    name = "user_id"
+    type = "S"
   }
 
   server_side_encryption {
@@ -60,7 +61,72 @@ resource "aws_dynamodb_table" "this" {
   }
 
   tags = {
-    Name = var.dynamodb_table_name
+    Name = var.users_table_name
+  }
+}
+
+resource "aws_dynamodb_table" "chats" {
+  name         = var.chats_table_name
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key = "chat_id"
+
+  attribute {
+    name = "chat_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "UserChatsIndex"
+    hash_key        = "user_id"
+    projection_type = "ALL"
+  }
+
+  server_side_encryption {
+    enabled = var.enable_dynamodb_sse
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = {
+    Name = var.chats_table_name
+  }
+}
+
+resource "aws_dynamodb_table" "messages" {
+  name         = var.messages_table_name
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key  = "chat_id"
+  range_key = "seq"
+
+  attribute {
+    name = "chat_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "seq"
+    type = "N"
+  }
+
+  server_side_encryption {
+    enabled = var.enable_dynamodb_sse
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = {
+    Name = var.messages_table_name
   }
 }
 

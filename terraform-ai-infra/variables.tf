@@ -174,27 +174,22 @@ variable "static_bucket_name" {
   type        = string
 }
 
-variable "dynamodb_table_name" {
-  description = "DynamoDB table name."
+variable "users_table_name" {
+  description = "Users DynamoDB table name."
   type        = string
-  default     = "SecureLLM-table-prod"
+  default     = "SecureLLM-Users"
 }
 
-variable "dynamodb_hash_key" {
-  description = "DynamoDB partition key name."
+variable "chats_table_name" {
+  description = "Chats DynamoDB table name."
   type        = string
-  default     = "id"
+  default     = "SecureLLM-Chats"
 }
 
-variable "dynamodb_hash_key_type" {
-  description = "DynamoDB partition key type: S, N, or B."
+variable "messages_table_name" {
+  description = "Messages DynamoDB table name."
   type        = string
-  default     = "S"
-
-  validation {
-    condition     = contains(["S", "N", "B"], var.dynamodb_hash_key_type)
-    error_message = "dynamodb_hash_key_type must be S, N, or B."
-  }
+  default     = "SecureLLM-Messages"
 }
 
 variable "enable_dynamodb_sse" {

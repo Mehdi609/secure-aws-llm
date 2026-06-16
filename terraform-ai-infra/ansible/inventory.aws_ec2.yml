@@ -26,6 +26,7 @@ compose:
   ansible_aws_ssm_region: '"us-west-1"'
   instance_name: tags.Name
   instance_az: placement.availability_zone
+  ansible_remote_tmp: /tmp/.ansible/tmp
 
 groups:
   ai_platform: true

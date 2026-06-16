@@ -23,17 +23,33 @@ module "networking" {
   region               = var.region
 }
 
+# module "storage" {
+#   source = "./modules/storage"
+
+#   name_prefix            = local.name_prefix
+#   static_bucket_name     = var.static_bucket_name
+#   dynamodb_table_name    = var.dynamodb_table_name
+#   dynamodb_hash_key      = var.dynamodb_hash_key
+#   dynamodb_hash_key_type = var.dynamodb_hash_key_type
+#   enable_dynamodb_sse    = var.enable_dynamodb_sse
+#   ssm_parameter_prefix   = var.ssm_parameter_prefix
+#   ssm_parameters         = var.ssm_parameters
+# }
+
 module "storage" {
   source = "./modules/storage"
 
-  name_prefix            = local.name_prefix
-  static_bucket_name     = var.static_bucket_name
-  dynamodb_table_name    = var.dynamodb_table_name
-  dynamodb_hash_key      = var.dynamodb_hash_key
-  dynamodb_hash_key_type = var.dynamodb_hash_key_type
-  enable_dynamodb_sse    = var.enable_dynamodb_sse
-  ssm_parameter_prefix   = var.ssm_parameter_prefix
-  ssm_parameters         = var.ssm_parameters
+  name_prefix        = local.name_prefix
+  static_bucket_name = var.static_bucket_name
+
+  users_table_name    = var.users_table_name
+  chats_table_name    = var.chats_table_name
+  messages_table_name = var.messages_table_name
+
+  enable_dynamodb_sse = var.enable_dynamodb_sse
+
+  ssm_parameter_prefix = var.ssm_parameter_prefix
+  ssm_parameters       = var.ssm_parameters
 }
 
 module "observability" {
@@ -47,22 +63,30 @@ module "observability" {
   alb_arn_suffix          = module.compute.alb_arn_suffix
   target_group_arn_suffix = module.compute.target_group_arn_suffix
   asg_name                = module.compute.asg_name
-  dynamodb_table_name     = module.storage.dynamodb_table_name
-  alb_5xx_threshold       = var.alb_5xx_threshold
-  cpu_alarm_threshold     = var.cpu_alarm_threshold
+  # dynamodb_table_name     = module.storage.dynamodb_table_name
+  dynamodb_table_name = module.storage.chats_table_name
+  alb_5xx_threshold   = var.alb_5xx_threshold
+  cpu_alarm_threshold = var.cpu_alarm_threshold
 }
 
 module "iam" {
   source = "./modules/iam"
 
-  project_name       = var.project_name
-  environment        = var.environment
-  name_prefix        = local.name_prefix
-  aws_region         = var.region
-  s3_bucket_arn      = module.storage.static_bucket_arn
-  dynamodb_table_arn = module.storage.dynamodb_table_arn
-  app_log_group_name = local.app_log_group_name
-  ssm_parameter_arns = module.storage.ssm_parameter_arns
+  project_name  = var.project_name
+  environment   = var.environment
+  name_prefix   = local.name_prefix
+  aws_region    = var.region
+  s3_bucket_arn = module.storage.static_bucket_arn
+
+
+  dynamodb_table_arns = [
+    module.storage.users_table_arn,
+    module.storage.chats_table_arn,
+    module.storage.messages_table_arn
+  ]
+
+  app_log_group_name   = local.app_log_group_name
+  ssm_parameter_arns   = module.storage.ssm_parameter_arns
   ssm_parameter_prefix = var.ssm_parameter_prefix
 
   allowed_principals = var.iam_allowed_principals

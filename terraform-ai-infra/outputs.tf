@@ -33,9 +33,31 @@ output "static_bucket_name" {
   value       = module.storage.static_bucket_id
 }
 
-output "dynamodb_table_name" {
-  description = "DynamoDB table name."
-  value       = module.storage.dynamodb_table_name
+output "users_table_name" {
+  description = "Users DynamoDB table name."
+  value       = module.storage.users_table_name
+}
+
+output "chats_table_name" {
+  description = "Chats DynamoDB table name."
+  value       = module.storage.chats_table_name
+}
+
+output "messages_table_name" {
+  description = "Messages DynamoDB table name."
+  value       = module.storage.messages_table_name
+}
+
+output "users_table_arn" {
+  value = module.storage.users_table_arn
+}
+
+output "chats_table_arn" {
+  value = module.storage.chats_table_arn
+}
+
+output "messages_table_arn" {
+  value = module.storage.messages_table_arn
 }
 
 output "alarm_topic_arn" {

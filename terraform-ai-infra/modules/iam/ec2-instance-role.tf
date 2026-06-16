@@ -55,10 +55,13 @@ data "aws_iam_policy_document" "ec2_app" {
       "dynamodb:Scan",
       "dynamodb:UpdateItem",
     ]
-    resources = [
-      var.dynamodb_table_arn,
-      "${var.dynamodb_table_arn}/index/*",
-    ]
+    resources = concat(
+      var.dynamodb_table_arns,
+      [
+        for arn in var.dynamodb_table_arns :
+        "${arn}/index/*"
+      ]
+    )
   }
 
   statement {

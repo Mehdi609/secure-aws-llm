@@ -10,12 +10,28 @@ output "static_bucket_regional_domain_name" {
   value = aws_s3_bucket.static.bucket_regional_domain_name
 }
 
-output "dynamodb_table_name" {
-  value = aws_dynamodb_table.this.name
+output "users_table_name" {
+  value = aws_dynamodb_table.users.name
 }
 
-output "dynamodb_table_arn" {
-  value = aws_dynamodb_table.this.arn
+output "users_table_arn" {
+  value = aws_dynamodb_table.users.arn
+}
+
+output "chats_table_name" {
+  value = aws_dynamodb_table.chats.name
+}
+
+output "chats_table_arn" {
+  value = aws_dynamodb_table.chats.arn
+}
+
+output "messages_table_name" {
+  value = aws_dynamodb_table.messages.name
+}
+
+output "messages_table_arn" {
+  value = aws_dynamodb_table.messages.arn
 }
 
 output "ssm_parameter_arns" {

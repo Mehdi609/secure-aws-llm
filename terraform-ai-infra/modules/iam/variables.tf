@@ -86,9 +86,13 @@ variable "ml_s3_bucket_arns" {
   default     = []
 }
 
-variable "dynamodb_table_arn" {
-  description = "Application DynamoDB table ARN (EC2 workload access)."
-  type        = string
+# variable "dynamodb_table_arn" {
+#   description = "Application DynamoDB table ARN (EC2 workload access)."
+#   type        = string
+# }
+variable "dynamodb_table_arns" {
+  description = "DynamoDB table ARNs"
+  type        = list(string)
 }
 
 variable "app_log_group_name" {

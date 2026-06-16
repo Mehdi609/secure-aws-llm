@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = process.env.REACT_APP_API_BASE || "/api";
 
 function formatTimestamp(value) {
   if (!value) return "";

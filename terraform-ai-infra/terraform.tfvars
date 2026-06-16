@@ -6,10 +6,15 @@ instance_type = "t3.medium"
 domain_name   = "elmehdiboussoufi.me"
 # route53_zone_id     = "Z1234567890ABC"
 static_bucket_name  = "frontend-files-prod-static"
-dynamodb_table_name = "SecureLLM-table-prod"
-dynamodb_hash_key   = "id"
-ops_email           = "contact@elmehdiboussoufi.me"
-enable_cloudfront   = false
+users_table_name    = "SecureLLM-Users"
+chats_table_name    = "SecureLLM-Chats"
+messages_table_name = "SecureLLM-Messages"
+# dynamodb_table_name = "SecureLLM-table-prod"
+# dynamodb_hash_key   = "id"
+ops_email         = "contact@elmehdiboussoufi.me"
+enable_cloudfront = false
+
+
 
 # Optional production values:
 # alb_certificate_arn        = "arn:aws:acm:us-west-1:123456789012:certificate/..."
