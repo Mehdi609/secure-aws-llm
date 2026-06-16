@@ -1,16 +1,16 @@
 name: Build and Push Docker Image
 
 on:
-push:
-branches:
-- main
+ push:
+  branches:
+   - main
 
 env:
   IMAGE_NAME: ai-backend
 
 jobs:
-docker:
-runs-on: ubuntu-latest
+ docker:
+  runs-on: ubuntu-latest
 
 
 steps:
