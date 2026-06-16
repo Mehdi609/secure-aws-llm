@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-import boto3
+
 import requests
 import json
 import re
@@ -12,6 +12,8 @@ from uuid import uuid4
 # from pymongo import MongoClient, ReturnDocument
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+
+import boto3
 from boto3.dynamodb.conditions import Key
 
 

@@ -44,6 +44,11 @@ MANIFEST
 .coverage
 htmlcov/
 
+__pycache__/
+*.pyc
+
+ai-ui/build/
+
 # Node/React
 node_modules/
 /ai-ui/node_modules/
@@ -55,6 +60,7 @@ yarn-debug.log
 .terraform/
 **/.terraform/
 **/node_modules/
+terraform-ai-infra/ansible/inventory.json
 
 # Frontend builds
 build/
