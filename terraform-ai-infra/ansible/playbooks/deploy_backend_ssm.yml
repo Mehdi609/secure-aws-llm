@@ -117,14 +117,7 @@
         )
 
         parameters_file=$(mktemp)
-        DEPLOY_COMMAND="$deploy_command" python3 - "$parameters_file" <<'PY'
-        import json
-        import os
-        import sys
-
-        with open(sys.argv[1], "w", encoding="utf-8") as handle:
-            json.dump({"commands": [os.environ["DEPLOY_COMMAND"]]}, handle)
-        PY
+        DEPLOY_COMMAND="$deploy_command" python3 -c 'import json, os, sys; json.dump({"commands": [os.environ["DEPLOY_COMMAND"]]}, open(sys.argv[1], "w", encoding="utf-8"))' "$parameters_file"
 
         command_id=$(aws ssm send-command \
           --region "{{ aws_region }}" \
@@ -140,25 +133,21 @@
         echo "SSM command id: $command_id"
 
         for i in $(seq 1 120); do
-          statuses=$(aws ssm list-command-invocations \
+          invocations_json=$(aws ssm list-command-invocations \
             --region "{{ aws_region }}" \
             --command-id "$command_id" \
             --details \
-            --query "CommandInvocations[].Status" \
-            --output text)
+            --output json)
 
+          statuses=$(INVOCATIONS_JSON="$invocations_json" python3 -c 'import json, os; data = json.loads(os.environ["INVOCATIONS_JSON"]); print(" ".join(item["Status"] for item in data.get("CommandInvocations", [])))')
           echo "Statuses: ${statuses:-pending}"
 
           if echo "$statuses" | grep -Eq '\b(Failed|Cancelled|TimedOut|Cancelling)\b'; then
-            aws ssm list-command-invocations \
-              --region "{{ aws_region }}" \
-              --command-id "$command_id" \
-              --details \
-              --output json
+            printf '%s\n' "$invocations_json"
             exit 1
           fi
 
-          if [ -n "$statuses" ] && ! echo "$statuses" | grep -Evq '\bSuccess\b'; then
+          if [ -n "$statuses" ] && STATUSES="$statuses" python3 -c 'import os, sys; statuses = os.environ["STATUSES"].split(); sys.exit(0 if statuses and all(status == "Success" for status in statuses) else 1)'; then
             aws ssm list-command-invocations \
               --region "{{ aws_region }}" \
               --command-id "$command_id" \
