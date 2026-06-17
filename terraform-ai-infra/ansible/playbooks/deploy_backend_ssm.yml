@@ -108,13 +108,93 @@
 
         for i in $(seq 1 30); do
           if curl -fsS "http://127.0.0.1:$BACKEND_PORT/health"; then
-            exit 0
+            break
           fi
           sleep 2
         done
 
-        sudo docker logs "$BACKEND_CONTAINER_NAME" --tail 100
-        exit 1
+        if ! curl -fsS "http://127.0.0.1:$BACKEND_PORT/health" >/dev/null; then
+          sudo docker logs "$BACKEND_CONTAINER_NAME" --tail 100
+          exit 1
+        fi
+
+        if command -v nginx >/dev/null 2>&1; then
+          sudo tee /etc/nginx/nginx.conf >/dev/null <<NGINX
+        user nginx;
+        worker_processes auto;
+        error_log /var/log/nginx/error.log;
+        pid /run/nginx.pid;
+
+        events {
+          worker_connections 1024;
+        }
+
+        http {
+          log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
+                          '\$status \$body_bytes_sent "\$http_referer" '
+                          '"\$http_user_agent" "\$http_x_forwarded_for"';
+
+          access_log /var/log/nginx/access.log main;
+          sendfile on;
+          tcp_nopush on;
+          keepalive_timeout 65;
+          types_hash_max_size 4096;
+          include /etc/nginx/mime.types;
+          default_type application/octet-stream;
+
+          server {
+            listen 80 default_server;
+            server_name _;
+
+            location = /health {
+              access_log off;
+              proxy_pass http://127.0.0.1:$BACKEND_PORT/health;
+              proxy_http_version 1.1;
+              proxy_set_header Host \$host;
+              proxy_set_header X-Real-IP \$remote_addr;
+              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto \$scheme;
+            }
+
+            location = /api {
+              return 308 /api/;
+            }
+
+            location /api/ {
+              proxy_pass http://127.0.0.1:$BACKEND_PORT/;
+              proxy_http_version 1.1;
+              proxy_set_header Host \$host;
+              proxy_set_header X-Real-IP \$remote_addr;
+              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto \$scheme;
+            }
+
+            location / {
+              proxy_pass http://127.0.0.1:$BACKEND_PORT;
+              proxy_http_version 1.1;
+              proxy_set_header Host \$host;
+              proxy_set_header X-Real-IP \$remote_addr;
+              proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto \$scheme;
+            }
+          }
+        }
+        NGINX
+
+          sudo nginx -t
+          sudo systemctl enable nginx
+          sudo systemctl restart nginx
+        fi
+
+        curl -fsS "http://127.0.0.1/health"
+        cors_headers=$(mktemp)
+        curl -sS -o /dev/null -D "$cors_headers" \
+          "http://127.0.0.1/chats" \
+          -H "Origin: http://frontend-files-prod-static.s3-website-us-west-1.amazonaws.com"
+        grep -qi '^access-control-allow-origin:' "$cors_headers"
+        rm -f "$cors_headers"
+
+        exit 0
         REMOTE_SCRIPT
         )
 
