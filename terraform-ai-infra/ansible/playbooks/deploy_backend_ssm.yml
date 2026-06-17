@@ -17,15 +17,17 @@
     ollama_num_thread: 2
     ollama_temperature: 0.3
     ollama_keep_alive: 30m
-    google_client_id: ""
+    google_client_id: 774483348931-p8ji6js5ihhgndg06ikk80r0iuoapbsa.apps.googleusercontent.com
 
   tasks:
-    - name: Validate required backend image variable
+    - name: Validate required deployment variables
       ansible.builtin.assert:
         that:
           - backend_image is defined
           - backend_image | length > 0
-        fail_msg: "Pass -e backend_image=DOCKERHUB_USER/ai-backend:TAG"
+          - google_client_id is defined
+          - google_client_id | length > 0
+        fail_msg: "Pass -e backend_image=DOCKERHUB_USER/ai-backend:TAG and a non-empty google_client_id"
 
     - name: Deploy backend container on all running app EC2 instances
       ansible.builtin.shell: |

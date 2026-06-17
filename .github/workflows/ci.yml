@@ -16,6 +16,7 @@ env:
   AWS_REGION: us-west-1
   BACKEND_IMAGE_NAME: ai-backend
   OLLAMA_MODEL: qwen2.5:1.5b
+  GOOGLE_CLIENT_ID: 774483348931-p8ji6js5ihhgndg06ikk80r0iuoapbsa.apps.googleusercontent.com
 
 jobs:
   backend-test:
@@ -76,6 +77,7 @@ jobs:
         working-directory: ai-ui
         env:
           CI: "false"
+          REACT_APP_GOOGLE_CLIENT_ID: ${{ env.GOOGLE_CLIENT_ID }}
         run: npm run build
 
   sast:
@@ -246,4 +248,4 @@ jobs:
             -e "backend_image=$BACKEND_IMAGE" \
             -e "backend_container_name=ai-backend" \
             -e "ollama_model=${{ env.OLLAMA_MODEL }}" \
-            -e "google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}"
+            -e "google_client_id=${{ env.GOOGLE_CLIENT_ID }}"
