@@ -172,18 +172,35 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push backend image
+      - name: Build backend image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           DOCKERHUB_NAMESPACE="${DOCKERHUB_USERNAME,,}"
           IMAGE="$DOCKERHUB_NAMESPACE/${{ env.BACKEND_IMAGE_NAME }}"
+          echo "Building $IMAGE:${{ github.sha }} and $IMAGE:latest"
 
           docker build \
             -t "$IMAGE:${{ github.sha }}" \
             -t "$IMAGE:latest" \
             .
+
+      - name: Push commit image tag
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          DOCKERHUB_NAMESPACE="${DOCKERHUB_USERNAME,,}"
+          IMAGE="$DOCKERHUB_NAMESPACE/${{ env.BACKEND_IMAGE_NAME }}"
+          echo "Pushing $IMAGE:${{ github.sha }}"
           docker push "$IMAGE:${{ github.sha }}"
+
+      - name: Push latest image tag
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          DOCKERHUB_NAMESPACE="${DOCKERHUB_USERNAME,,}"
+          IMAGE="$DOCKERHUB_NAMESPACE/${{ env.BACKEND_IMAGE_NAME }}"
+          echo "Pushing $IMAGE:latest"
           docker push "$IMAGE:latest"
 
   deploy:
