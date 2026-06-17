@@ -24,7 +24,7 @@ compose:
   ansible_host: instance_id
   ansible_connection: '"amazon.aws.aws_ssm"'
   ansible_aws_ssm_region: '"us-west-1"'
-  instance_name: tags.Name
+  instance_name: ec2_tags.Name
   instance_az: placement.availability_zone
   ansible_remote_tmp: /tmp/.ansible/tmp
 

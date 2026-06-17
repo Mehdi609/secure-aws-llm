@@ -36,7 +36,13 @@ services:
       - "8000:8000"
     environment:
       - MONGO_URI=mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:-example}@mongodb:27017/chat_db?authSource=admin
-      - AI_BASE_URL=http://ollama:11434
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
+      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-2048}
+      - OLLAMA_NUM_PREDICT=${OLLAMA_NUM_PREDICT:-256}
+      - OLLAMA_NUM_THREAD=${OLLAMA_NUM_THREAD:-2}
+      - OLLAMA_TEMPERATURE=${OLLAMA_TEMPERATURE:-0.3}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-30m}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     depends_on:
       - mongodb

@@ -21,15 +21,21 @@
     state: started
     enabled: true
 
-- name: Pull frontend image
-  community.docker.docker_image:
-    name: "{{ frontend_image }}"
-    source: pull
+- name: Login to Docker Hub when credentials are provided
+  community.docker.docker_login:
+    username: "{{ dockerhub_username }}"
+    password: "{{ dockerhub_token }}"
+  when:
+    - dockerhub_username is defined
+    - dockerhub_username | length > 0
+    - dockerhub_token is defined
+    - dockerhub_token | length > 0
 
 - name: Pull backend image
   community.docker.docker_image:
     name: "{{ backend_image }}"
     source: pull
+    force_source: true
 
 - name: Pull Ollama image
   community.docker.docker_image:
@@ -47,7 +53,7 @@
 
 - name: Run Ollama container
   community.docker.docker_container:
-    name: ollama
+    name: "{{ ollama_container_name }}"
     image: ollama/ollama
     state: started
     restart_policy: unless-stopped
@@ -67,40 +73,33 @@
     port: 11434
     timeout: 300
 
-- name: Pull Dolphin model
+- name: Pull Ollama model
   ansible.builtin.command:
-    cmd: docker exec ollama ollama pull dolphin3
-  register: dolphin_pull
-  changed_when: "'success' in dolphin_pull.stdout | lower"
-
-- name: Run frontend container
-  community.docker.docker_container:
-    name: "{{ frontend_container_name }}"
-    image: "{{ frontend_image }}"
-    state: started
-    restart_policy: unless-stopped
-    published_ports:
-      - "{{ frontend_port }}:{{ frontend_port }}"
-    env:
-      OLLAMA_URL: "http://ollama:11434"
-      AWS_REGION: "{{ aws_region }}"
-      DYNAMODB_TABLE: "{{ dynamodb_table }}"
-    
+    cmd: "docker exec {{ ollama_container_name }} ollama pull {{ ollama_model }}"
+  register: ollama_model_pull
+  changed_when: "'success' in ollama_model_pull.stdout | lower"
 
 - name: Run backend container
   community.docker.docker_container:
     name: "{{ backend_container_name }}"
     image: "{{ backend_image }}"
     state: started
+    recreate: true
     restart_policy: unless-stopped
     published_ports:
       - "{{ backend_port }}:{{ backend_port }}"
-
-- name: Wait for frontend port
-  ansible.builtin.wait_for:
-    host: 127.0.0.1
-    port: "{{ frontend_port }}"
-    timeout: 120
+    networks:
+      - name: app-network
+    env:
+      OLLAMA_URL: "{{ ollama_url }}"
+      OLLAMA_MODEL: "{{ ollama_model }}"
+      OLLAMA_NUM_CTX: "{{ ollama_num_ctx | default(2048) }}"
+      OLLAMA_NUM_PREDICT: "{{ ollama_num_predict | default(256) }}"
+      OLLAMA_NUM_THREAD: "{{ ollama_num_thread | default(2) }}"
+      OLLAMA_TEMPERATURE: "{{ ollama_temperature | default(0.3) }}"
+      OLLAMA_KEEP_ALIVE: "{{ ollama_keep_alive | default('30m') }}"
+      AWS_REGION: "{{ aws_region }}"
+      GOOGLE_CLIENT_ID: "{{ google_client_id | default('') }}"
 
 - name: Wait for backend port
   ansible.builtin.wait_for:

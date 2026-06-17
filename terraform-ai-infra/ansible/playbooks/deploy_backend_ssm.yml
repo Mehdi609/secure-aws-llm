@@ -1,0 +1,164 @@
+---
+- name: Deploy backend image through AWS SSM Run Command
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aws_region: us-west-1
+    target_name_tag: SecureLLM-prod-app
+    backend_container_name: ai-backend
+    backend_port: 8000
+    ollama_container_name: ollama
+    ollama_model: qwen2.5:1.5b
+    ollama_num_ctx: 2048
+    ollama_num_predict: 256
+    ollama_num_thread: 2
+    ollama_temperature: 0.3
+    ollama_keep_alive: 30m
+    google_client_id: ""
+
+  tasks:
+    - name: Validate required backend image variable
+      ansible.builtin.assert:
+        that:
+          - backend_image is defined
+          - backend_image | length > 0
+        fail_msg: "Pass -e backend_image=DOCKERHUB_USER/ai-backend:TAG"
+
+    - name: Deploy backend container on all running app EC2 instances
+      ansible.builtin.shell: |
+        set -euo pipefail
+
+        deploy_command=$(cat <<'REMOTE_SCRIPT'
+        set -euo pipefail
+
+        BACKEND_IMAGE="{{ backend_image }}"
+        BACKEND_CONTAINER_NAME="{{ backend_container_name }}"
+        BACKEND_PORT="{{ backend_port }}"
+        OLLAMA_CONTAINER_NAME="{{ ollama_container_name }}"
+        OLLAMA_MODEL="{{ ollama_model }}"
+        OLLAMA_NUM_CTX="{{ ollama_num_ctx }}"
+        OLLAMA_NUM_PREDICT="{{ ollama_num_predict }}"
+        OLLAMA_NUM_THREAD="{{ ollama_num_thread }}"
+        OLLAMA_TEMPERATURE="{{ ollama_temperature }}"
+        OLLAMA_KEEP_ALIVE="{{ ollama_keep_alive }}"
+        GOOGLE_CLIENT_ID="{{ google_client_id | default('') }}"
+
+        sudo systemctl start docker
+        sudo docker network inspect app-network >/dev/null 2>&1 || sudo docker network create app-network
+
+        if sudo docker ps -a --format '{{ "{{" }}.Names{{ "}}" }}' | grep -qx "$OLLAMA_CONTAINER_NAME"; then
+          sudo docker start "$OLLAMA_CONTAINER_NAME" >/dev/null
+        else
+          sudo docker run -d \
+            --name "$OLLAMA_CONTAINER_NAME" \
+            --restart unless-stopped \
+            --network app-network \
+            -p 11434:11434 \
+            -v ollama-data:/root/.ollama \
+            ollama/ollama
+        fi
+
+        sudo docker network connect app-network "$OLLAMA_CONTAINER_NAME" >/dev/null 2>&1 || true
+
+        for i in $(seq 1 60); do
+          if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+            break
+          fi
+          sleep 2
+        done
+
+        sudo docker exec "$OLLAMA_CONTAINER_NAME" ollama pull "$OLLAMA_MODEL"
+
+        sudo docker pull "$BACKEND_IMAGE"
+        sudo docker rm -f "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1 || true
+
+        sudo docker run -d \
+          --name "$BACKEND_CONTAINER_NAME" \
+          --restart unless-stopped \
+          --network app-network \
+          -p "$BACKEND_PORT:$BACKEND_PORT" \
+          -e OLLAMA_URL=http://ollama:11434 \
+          -e OLLAMA_MODEL="$OLLAMA_MODEL" \
+          -e OLLAMA_NUM_CTX="$OLLAMA_NUM_CTX" \
+          -e OLLAMA_NUM_PREDICT="$OLLAMA_NUM_PREDICT" \
+          -e OLLAMA_NUM_THREAD="$OLLAMA_NUM_THREAD" \
+          -e OLLAMA_TEMPERATURE="$OLLAMA_TEMPERATURE" \
+          -e OLLAMA_KEEP_ALIVE="$OLLAMA_KEEP_ALIVE" \
+          -e AWS_REGION="{{ aws_region }}" \
+          -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+          "$BACKEND_IMAGE"
+
+        for i in $(seq 1 30); do
+          if curl -fsS "http://127.0.0.1:$BACKEND_PORT/health"; then
+            exit 0
+          fi
+          sleep 2
+        done
+
+        sudo docker logs "$BACKEND_CONTAINER_NAME" --tail 100
+        exit 1
+        REMOTE_SCRIPT
+        )
+
+        parameters_file=$(mktemp)
+        DEPLOY_COMMAND="$deploy_command" python3 - "$parameters_file" <<'PY'
+        import json
+        import os
+        import sys
+
+        with open(sys.argv[1], "w", encoding="utf-8") as handle:
+            json.dump({"commands": [os.environ["DEPLOY_COMMAND"]]}, handle)
+        PY
+
+        command_id=$(aws ssm send-command \
+          --region "{{ aws_region }}" \
+          --targets "Key=tag:Name,Values={{ target_name_tag }}" \
+          --document-name AWS-RunShellScript \
+          --comment "Deploy {{ backend_image }}" \
+          --parameters "file://$parameters_file" \
+          --query "Command.CommandId" \
+          --output text)
+
+        rm -f "$parameters_file"
+
+        echo "SSM command id: $command_id"
+
+        for i in $(seq 1 120); do
+          statuses=$(aws ssm list-command-invocations \
+            --region "{{ aws_region }}" \
+            --command-id "$command_id" \
+            --details \
+            --query "CommandInvocations[].Status" \
+            --output text)
+
+          echo "Statuses: ${statuses:-pending}"
+
+          if echo "$statuses" | grep -Eq '\b(Failed|Cancelled|TimedOut|Cancelling)\b'; then
+            aws ssm list-command-invocations \
+              --region "{{ aws_region }}" \
+              --command-id "$command_id" \
+              --details \
+              --output json
+            exit 1
+          fi
+
+          if [ -n "$statuses" ] && ! echo "$statuses" | grep -Evq '\bSuccess\b'; then
+            aws ssm list-command-invocations \
+              --region "{{ aws_region }}" \
+              --command-id "$command_id" \
+              --details \
+              --query "CommandInvocations[].{InstanceId:InstanceId,Status:Status,Output:CommandPlugins[0].Output}" \
+              --output table
+            exit 0
+          fi
+
+          sleep 5
+        done
+
+        echo "Timed out waiting for SSM command $command_id"
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: true

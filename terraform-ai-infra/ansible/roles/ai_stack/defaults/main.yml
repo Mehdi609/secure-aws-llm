@@ -1,7 +1,2 @@
-
-frontend_container_name: ai-frontend-container
-
-backend_container_name: ai-backend-container
-
-
-
+backend_container_name: ai-backend
+ollama_container_name: ollama

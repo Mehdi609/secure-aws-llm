@@ -71,12 +71,34 @@ function App() {
     return res;
   }, [token]);
 
+  const readApiResponse = async (res) => {
+    const rawBody = await res.text();
+    let data = {};
+    if (rawBody) {
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = { detail: rawBody };
+      }
+    }
+
+    if (!res.ok) {
+      const message =
+        data.detail ||
+        data.error ||
+        `Request failed with status ${res.status}`;
+      throw new Error(Array.isArray(message) ? message.join(", ") : message);
+    }
+
+    return data;
+  };
+
   const fetchChats = useCallback(async () => {
     if (!token) return [];
     try {
       const res = await fetchWithAuth(`${API_BASE}/chats`);
       if (!res) return [];
-      const data = await res.json();
+      const data = await readApiResponse(res);
       const chats = data.chats || [];
       setChatHistory(chats);
       return chats;
@@ -91,7 +113,7 @@ function App() {
     try {
       const res = await fetchWithAuth(`${API_BASE}/chats/${chatId}`);
       if (!res) return;
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (data.chat?.messages) {
         setMessages(data.chat.messages);
       } else {
@@ -105,7 +127,7 @@ function App() {
     try {
       const res = await fetchWithAuth(`${API_BASE}/chats`, { method: "POST" });
       if (!res) return;
-      const data = await res.json();
+      const data = await readApiResponse(res);
       const created = data.chat;
       if (!created?.id) return;
       await fetchChats();
@@ -120,7 +142,7 @@ function App() {
         method: "DELETE",
       });
       if (!res) return;
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (!data.ok) return;
       const chats = await fetchChats();
       if (chatId === activeChatId) {
@@ -170,15 +192,24 @@ function App() {
       });
       if (!res) return;
 
-      const data = await res.json();
-    const aiReply = data.response || data.error || "No response received.";
-    if (data.chat?.messages) {
-      setMessages(data.chat.messages);
-    } else {
-      setMessages((prev) => [...prev, { role: "assistant", content: aiReply }]);
-    }
+      const data = await readApiResponse(res);
+      const aiReply = data.messages?.assistant || {
+        role: "assistant",
+        content: data.response || "No response received.",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, aiReply]);
       await fetchChats();
-    } catch (e) {} finally {
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry, the backend could not answer: ${e.message}`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
       setIsLoading(false);
     }
   };

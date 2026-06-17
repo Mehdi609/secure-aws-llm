@@ -5,10 +5,16 @@ aws_region: us-west-1
 ansible_aws_ssm_bucket_name: frontend-files-prod-static
 ansible_aws_ssm_bucket_sse_mode: AES256
 
-frontend_image: mehdi609/ai-frontend:v1
-backend_image: mehdi609/ai-backend:v1
-frontend_port: 3000
+backend_image: mehdi609/ai-backend:latest
 backend_port: 8000
+ollama_model: qwen2.5:1.5b
+ollama_url: http://ollama:11434
+ollama_num_ctx: 2048
+ollama_num_predict: 256
+ollama_num_thread: 2
+ollama_temperature: 0.3
+ollama_keep_alive: 30m
+google_client_id: 774483348931-p8ji6js5ihhgndg06ikk80r0iuoapbsa.apps.googleusercontent.com
 
-# Nginx listens on 80 for ALB; /health stays local for target group checks.
+# Nginx listens on 80 for ALB/API Gateway; /api/* is forwarded to FastAPI.
 api_location_prefix: /api/

@@ -17,7 +17,16 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 
+load_dotenv()
+
 AWS_REGION = os.getenv("AWS_REGION", "us-west-1")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "2048"))
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "256"))
+OLLAMA_NUM_THREAD = int(os.getenv("OLLAMA_NUM_THREAD", "2"))
+OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.3"))
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
 
 dynamodb = boto3.resource(
     "dynamodb",
@@ -27,9 +36,6 @@ dynamodb = boto3.resource(
 users_table = dynamodb.Table("SecureLLM-Users")
 chats_table = dynamodb.Table("SecureLLM-Chats")
 messages_table = dynamodb.Table("SecureLLM-Messages")
-
-load_dotenv()
-
 
 
 
@@ -145,18 +151,42 @@ User request:
 
 def call_llama(prompt: str) -> str:
     styled_prompt = build_styled_prompt(prompt)
-    ollama_url = os.getenv("OLLAMA_URL", "http://ollama:11434")
-    response = requests.post(
-        f"{ollama_url}/api/generate",
-        json={
-            "model": "dolphin-llama3",
-            "prompt": styled_prompt,
-            "stream": True,
-        },
-        stream=True,
-        timeout=120,
-    )
-    response.raise_for_status()
+    ollama_url = os.getenv("OLLAMA_URL") or os.getenv("AI_BASE_URL", "http://ollama:11434")
+    try:
+        response = requests.post(
+            f"{ollama_url.rstrip('/')}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": styled_prompt,
+                "stream": True,
+                "keep_alive": OLLAMA_KEEP_ALIVE,
+                "options": {
+                    "num_ctx": OLLAMA_NUM_CTX,
+                    "num_predict": OLLAMA_NUM_PREDICT,
+                    "num_thread": OLLAMA_NUM_THREAD,
+                    "temperature": OLLAMA_TEMPERATURE,
+                },
+            },
+            stream=True,
+            timeout=OLLAMA_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except requests.exceptions.Timeout as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="The model took too long to answer. Try a shorter prompt or check Ollama CPU/RAM usage.",
+        ) from exc
+    except requests.exceptions.ConnectionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="FastAPI cannot connect to Ollama. Check OLLAMA_URL and that the Ollama container is running.",
+        ) from exc
+    except requests.exceptions.HTTPError as exc:
+        detail = response.text.strip() if response is not None else str(exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama returned an error for model '{OLLAMA_MODEL}': {detail}",
+        ) from exc
 
     chunks = []
     for line in response.iter_lines(decode_unicode=True):
@@ -179,6 +209,8 @@ def call_llama(prompt: str) -> str:
             break
 
     raw_text = "".join(chunks).strip()
+    if not raw_text:
+        raise HTTPException(status_code=502, detail="Ollama returned an empty response.")
     return format_structured_response(raw_text)
 
 
@@ -424,6 +456,11 @@ def delete_chat(
 # -----------------------
 # MAIN API
 # -----------------------
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
 @app.post("/chat")
 def chat(data: dict, current_user: dict = Depends(get_current_user)):
     user_id = current_user["sub"]
@@ -517,6 +554,3 @@ def create_chat(current_user: dict = Depends(get_current_user)):
             "timestamp": chat_doc["updated_at"]
         }
     }
-
-
-
