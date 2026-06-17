@@ -3,6 +3,7 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  become: false
 
   vars:
     aws_region: us-west-1
@@ -45,6 +46,19 @@
         OLLAMA_KEEP_ALIVE="{{ ollama_keep_alive }}"
         GOOGLE_CLIENT_ID="{{ google_client_id | default('') }}"
 
+        if ! command -v docker >/dev/null 2>&1; then
+          if command -v yum >/dev/null 2>&1; then
+            sudo yum install -y docker
+          elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y docker.io
+          else
+            echo "Cannot install Docker: no supported package manager found"
+            exit 1
+          fi
+        fi
+
+        sudo systemctl enable docker
         sudo systemctl start docker
         sudo docker network inspect app-network >/dev/null 2>&1 || sudo docker network create app-network
 
