@@ -16,6 +16,7 @@ env:
   AWS_REGION: us-west-1
   BACKEND_IMAGE_NAME: ai-backend
   OLLAMA_MODEL: qwen2.5:1.5b
+  OLLAMA_NUM_PREDICT: "128"
   GOOGLE_CLIENT_ID: 774483348931-p8ji6js5ihhgndg06ikk80r0iuoapbsa.apps.googleusercontent.com
 
 jobs:
@@ -248,4 +249,5 @@ jobs:
             -e "backend_image=$BACKEND_IMAGE" \
             -e "backend_container_name=ai-backend" \
             -e "ollama_model=${{ env.OLLAMA_MODEL }}" \
+            -e "ollama_num_predict=${{ env.OLLAMA_NUM_PREDICT }}" \
             -e "google_client_id=${{ env.GOOGLE_CLIENT_ID }}"

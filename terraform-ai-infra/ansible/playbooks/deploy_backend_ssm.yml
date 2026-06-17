@@ -13,7 +13,7 @@
     ollama_container_name: ollama
     ollama_model: qwen2.5:1.5b
     ollama_num_ctx: 2048
-    ollama_num_predict: 256
+    ollama_num_predict: 128
     ollama_num_thread: 2
     ollama_temperature: 0.3
     ollama_keep_alive: 30m

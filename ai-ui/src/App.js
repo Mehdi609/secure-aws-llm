@@ -4,6 +4,7 @@ import { GoogleLogin, googleLogout } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "/api";
+const APP_NAME = "1337 Coding School AI";
 
 function formatTimestamp(value) {
   if (!value) return "";
@@ -218,7 +219,7 @@ function App() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black px-4">
         <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-gray-900 p-8 text-center shadow-xl shadow-black/50">
-          <h1 className="mb-2 text-3xl font-bold text-white">Dolphin LLM</h1>
+          <h1 className="mb-2 text-3xl font-bold text-white">{APP_NAME}</h1>
           <p className="mb-8 text-gray-400">Sign in to start your AI sessions</p>
           <div className="flex justify-center">
             <GoogleLogin
@@ -306,9 +307,9 @@ function App() {
               {isSidebarOpen ? "←" : "→"}
             </button>
             <div className="flex-1">
-              <h1 className="text-xl font-semibold text-white">Dolphin LLM</h1>
+              <h1 className="text-xl font-semibold text-white">{APP_NAME}</h1>
               <p className="mt-1 text-sm text-gray-400">
-                Ask anything and get instant AI-powered answers.
+                Ask coding, cloud, and project questions.
               </p>
             </div>
             {user && (
@@ -333,7 +334,7 @@ function App() {
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
                 {messages.length === 0 && (
                   <div className="rounded-2xl border border-gray-800 bg-gray-900 px-4 py-5 text-center text-sm text-gray-400">
-                    Start a conversation with Ollama AI.
+                    Start a conversation with 1337 Coding School AI.
                   </div>
                 )}
 

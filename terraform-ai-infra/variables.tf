@@ -131,7 +131,7 @@ variable "ollama_num_ctx" {
 variable "ollama_num_predict" {
   description = "Ollama max generated tokens for backend generation."
   type        = number
-  default     = 256
+  default     = 128
 }
 
 variable "ollama_num_thread" {
