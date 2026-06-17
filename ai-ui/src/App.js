@@ -3,7 +3,9 @@ import ReactMarkdown from "react-markdown";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "/api";
+const API_BASE =
+  process.env.REACT_APP_API_BASE ||
+  "http://securellm-prod-alb-1140644530.us-west-1.elb.amazonaws.com";
 const APP_NAME = "1337 Coding School AI";
 
 function formatTimestamp(value) {
@@ -124,16 +126,24 @@ function App() {
   }, [token, fetchWithAuth]);
 
   const createNewChat = async () => {
-    if (isLoading || !token) return;
+    if (isLoading || !token) return "";
     try {
       const res = await fetchWithAuth(`${API_BASE}/chats`, { method: "POST" });
-      if (!res) return;
+      if (!res) return "";
       const data = await readApiResponse(res);
       const created = data.chat;
-      if (!created?.id) return;
+      if (!created?.id) return "";
       await fetchChats();
       await loadChat(created.id);
+      return created.id;
     } catch (e) {}
+    return "";
+  };
+
+  const ensureActiveChat = async () => {
+    if (activeChatId) return activeChatId;
+    const createdId = await createNewChat();
+    return createdId || "";
   };
 
   const removeChat = async (chatId) => {
@@ -174,7 +184,20 @@ function App() {
 
   const sendMessage = async () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || isLoading || !activeChatId) return;
+    if (!trimmedMessage || isLoading) return;
+
+    const chatId = await ensureActiveChat();
+    if (!chatId) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I could not create a chat session. Please refresh and try again.",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
 
     const optimisticUser = {
       role: "user",
@@ -189,7 +212,7 @@ function App() {
       const res = await fetchWithAuth(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmedMessage, chat_id: activeChatId }),
+        body: JSON.stringify({ message: trimmedMessage, chat_id: chatId }),
       });
       if (!res) return;
 
@@ -395,7 +418,7 @@ function App() {
 
               <button
                 onClick={sendMessage}
-                disabled={!message.trim() || isLoading || !activeChatId}
+                disabled={!message.trim() || isLoading}
                 className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-medium text-black shadow-md shadow-black/30 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400/50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="hidden sm:inline">Send</span>

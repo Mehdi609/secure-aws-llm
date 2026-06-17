@@ -18,6 +18,7 @@ env:
   OLLAMA_MODEL: qwen2.5:1.5b
   OLLAMA_NUM_PREDICT: "128"
   GOOGLE_CLIENT_ID: 774483348931-p8ji6js5ihhgndg06ikk80r0iuoapbsa.apps.googleusercontent.com
+  FRONTEND_API_BASE: http://securellm-prod-alb-1140644530.us-west-1.elb.amazonaws.com
 
 jobs:
   backend-test:
@@ -79,6 +80,7 @@ jobs:
         env:
           CI: "false"
           REACT_APP_GOOGLE_CLIENT_ID: ${{ env.GOOGLE_CLIENT_ID }}
+          REACT_APP_API_BASE: ${{ env.FRONTEND_API_BASE }}
         run: npm run build
 
   sast:
