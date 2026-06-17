@@ -174,8 +174,11 @@ jobs:
 
       - name: Build and push backend image
         env:
-          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
+          DOCKERHUB_NAMESPACE="${DOCKERHUB_USERNAME,,}"
+          IMAGE="$DOCKERHUB_NAMESPACE/${{ env.BACKEND_IMAGE_NAME }}"
+
           docker build \
             -t "$IMAGE:${{ github.sha }}" \
             -t "$IMAGE:latest" \
@@ -217,8 +220,11 @@ jobs:
       - name: Pull and restart backend on EC2
         working-directory: terraform-ai-infra/ansible
         env:
-          BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
+          DOCKERHUB_NAMESPACE="${DOCKERHUB_USERNAME,,}"
+          BACKEND_IMAGE="$DOCKERHUB_NAMESPACE/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}"
+
           ansible-playbook playbooks/deploy_backend_ssm.yml \
             -e "backend_image=$BACKEND_IMAGE" \
             -e "backend_container_name=ai-backend" \
