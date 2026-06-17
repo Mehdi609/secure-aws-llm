@@ -6,6 +6,12 @@ variable "static_bucket_name" {
   type = string
 }
 
+variable "block_public_access" {
+  description = "Block public access to the static bucket. Keep true when CloudFront OAC is enabled; false only for S3 website fallback."
+  type        = bool
+  default     = true
+}
+
 # variable "dynamodb_table_name" {
 #   type = string
 # }

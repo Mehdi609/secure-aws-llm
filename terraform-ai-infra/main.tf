@@ -39,8 +39,9 @@ module "networking" {
 module "storage" {
   source = "./modules/storage"
 
-  name_prefix        = local.name_prefix
-  static_bucket_name = var.static_bucket_name
+  name_prefix         = local.name_prefix
+  static_bucket_name  = var.static_bucket_name
+  block_public_access = var.enable_cloudfront
 
   users_table_name    = var.users_table_name
   chats_table_name    = var.chats_table_name

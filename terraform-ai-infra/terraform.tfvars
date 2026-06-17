@@ -11,8 +11,11 @@ chats_table_name    = "SecureLLM-Chats"
 messages_table_name = "SecureLLM-Messages"
 # dynamodb_table_name = "SecureLLM-table-prod"
 # dynamodb_hash_key   = "id"
-ops_email         = "contact@elmehdiboussoufi.me"
+ops_email = "contact@elmehdiboussoufi.me"
+# S3 website endpoints are HTTP-only. Set this to true after AWS verifies
+# the account for CloudFront creation, then use the cloudfront_domain_name output.
 enable_cloudfront = false
+create_dns_record = false
 
 
 
