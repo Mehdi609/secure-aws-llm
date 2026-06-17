@@ -1,20 +1,74 @@
 #!/bin/bash
 set -eux pipefail
 
-# yum update -y
-# yum install -y amazon-cloudwatch-agent nginx
+BACKEND_IMAGE="${backend_image}"
+BACKEND_CONTAINER_NAME="${backend_container_name}"
+BACKEND_PORT="${app_port}"
+OLLAMA_IMAGE="${ollama_image}"
+OLLAMA_CONTAINER_NAME="${ollama_container_name}"
+OLLAMA_MODEL="${ollama_model}"
+OLLAMA_NUM_CTX="${ollama_num_ctx}"
+OLLAMA_NUM_PREDICT="${ollama_num_predict}"
+OLLAMA_NUM_THREAD="${ollama_num_thread}"
+OLLAMA_TEMPERATURE="${ollama_temperature}"
+OLLAMA_KEEP_ALIVE="${ollama_keep_alive}"
+GOOGLE_CLIENT_ID="${google_client_id}"
+AWS_REGION="${aws_region}"
 
 yum update -y
-
-amazon-linux-extras enable nginx1
+amazon-linux-extras enable nginx1 || true
 yum clean metadata
+yum install -y nginx amazon-cloudwatch-agent docker
 
-yum install -y nginx amazon-cloudwatch-agent
+systemctl enable docker
+systemctl start docker
 
+docker network inspect app-network >/dev/null 2>&1 || docker network create app-network
+docker volume inspect ollama-data >/dev/null 2>&1 || docker volume create ollama-data
 
+docker pull "$OLLAMA_IMAGE"
+if docker ps -a --format '{{.Names}}' | grep -qx "$OLLAMA_CONTAINER_NAME"; then
+  docker start "$OLLAMA_CONTAINER_NAME" >/dev/null
+else
+  docker run -d \
+    --name "$OLLAMA_CONTAINER_NAME" \
+    --restart unless-stopped \
+    --network app-network \
+    -p 11434:11434 \
+    -v ollama-data:/root/.ollama \
+    "$OLLAMA_IMAGE"
+fi
 
+docker network connect app-network "$OLLAMA_CONTAINER_NAME" >/dev/null 2>&1 || true
 
-cat >/etc/nginx/nginx.conf <<'NGINX'
+for i in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+    break
+  fi
+  sleep 2
+done
+
+docker exec "$OLLAMA_CONTAINER_NAME" ollama pull "$OLLAMA_MODEL"
+
+docker pull "$BACKEND_IMAGE"
+docker rm -f "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1 || true
+docker run -d \
+  --name "$BACKEND_CONTAINER_NAME" \
+  --restart unless-stopped \
+  --network app-network \
+  -p "$BACKEND_PORT:$BACKEND_PORT" \
+  -e OLLAMA_URL=http://ollama:11434 \
+  -e OLLAMA_MODEL="$OLLAMA_MODEL" \
+  -e OLLAMA_NUM_CTX="$OLLAMA_NUM_CTX" \
+  -e OLLAMA_NUM_PREDICT="$OLLAMA_NUM_PREDICT" \
+  -e OLLAMA_NUM_THREAD="$OLLAMA_NUM_THREAD" \
+  -e OLLAMA_TEMPERATURE="$OLLAMA_TEMPERATURE" \
+  -e OLLAMA_KEEP_ALIVE="$OLLAMA_KEEP_ALIVE" \
+  -e AWS_REGION="$AWS_REGION" \
+  -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  "$BACKEND_IMAGE"
+
+cat >/etc/nginx/nginx.conf <<NGINX
 user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log;
@@ -25,9 +79,9 @@ events {
 }
 
 http {
-  log_format main '$remote_addr - $remote_user [$time_local] "$request" '
-                  '$status $body_bytes_sent "$http_referer" '
-                  '"$http_user_agent" "$http_x_forwarded_for"';
+  log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
+                  '\$status \$body_bytes_sent "\$http_referer" '
+                  '"\$http_user_agent" "\$http_x_forwarded_for"';
 
   access_log /var/log/nginx/access.log main;
   sendfile on;
@@ -43,16 +97,29 @@ http {
 
     location = /health {
       access_log off;
-      add_header Content-Type text/plain;
-      return 200 'ok';
+      proxy_pass http://127.0.0.1:${app_port}/health;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Real-IP \$remote_addr;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location = /api {
+      return 308 /api/;
+    }
+
+    location /api/ {
+      proxy_pass http://127.0.0.1:${app_port}/;
+      proxy_http_version 1.1;
+      proxy_set_header Host \$host;
+      proxy_set_header X-Real-IP \$remote_addr;
+      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     location / {
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-      proxy_pass http://127.0.0.1:${app_port};
+      return 404;
     }
   }
 }

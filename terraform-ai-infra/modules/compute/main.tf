@@ -69,9 +69,21 @@ resource "aws_launch_template" "app" {
   instance_type = var.instance_type
   key_name      = var.key_name
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
-    app_log_group_name = var.app_log_group_name
-    app_port           = var.app_port
-    user_data_extra    = var.user_data_extra
+    app_log_group_name     = var.app_log_group_name
+    aws_region             = var.aws_region
+    app_port               = var.app_port
+    backend_image          = var.backend_image
+    backend_container_name = var.backend_container_name
+    ollama_image           = var.ollama_image
+    ollama_container_name  = var.ollama_container_name
+    ollama_model           = var.ollama_model
+    ollama_num_ctx         = var.ollama_num_ctx
+    ollama_num_predict     = var.ollama_num_predict
+    ollama_num_thread      = var.ollama_num_thread
+    ollama_temperature     = var.ollama_temperature
+    ollama_keep_alive      = var.ollama_keep_alive
+    google_client_id       = var.google_client_id
+    user_data_extra        = var.user_data_extra
   }))
 
   iam_instance_profile {
@@ -133,7 +145,7 @@ resource "aws_autoscaling_group" "app" {
   vpc_zone_identifier       = var.private_subnet_ids
   target_group_arns         = [aws_lb_target_group.app.arn]
   health_check_type         = "ELB"
-  health_check_grace_period = 300
+  health_check_grace_period = 900
 
   launch_template {
     id      = aws_launch_template.app.id

@@ -89,7 +89,73 @@ variable "root_volume_size" {
 variable "app_port" {
   description = "Local backend application port proxied by nginx on port 80."
   type        = number
-  default     = 8080
+  default     = 8000
+}
+
+variable "backend_image" {
+  description = "Backend Docker image used by EC2 user data for first boot self-configuration."
+  type        = string
+  default     = "mehdi609/ai-backend:latest"
+}
+
+variable "backend_container_name" {
+  description = "Backend Docker container name."
+  type        = string
+  default     = "ai-backend"
+}
+
+variable "ollama_image" {
+  description = "Ollama Docker image used by EC2 user data."
+  type        = string
+  default     = "ollama/ollama"
+}
+
+variable "ollama_container_name" {
+  description = "Ollama Docker container name."
+  type        = string
+  default     = "ollama"
+}
+
+variable "ollama_model" {
+  description = "Ollama model pulled on EC2 first boot."
+  type        = string
+  default     = "qwen2.5:1.5b"
+}
+
+variable "ollama_num_ctx" {
+  description = "Ollama context window for backend generation."
+  type        = number
+  default     = 2048
+}
+
+variable "ollama_num_predict" {
+  description = "Ollama max generated tokens for backend generation."
+  type        = number
+  default     = 256
+}
+
+variable "ollama_num_thread" {
+  description = "Ollama CPU threads for backend generation."
+  type        = number
+  default     = 2
+}
+
+variable "ollama_temperature" {
+  description = "Ollama generation temperature."
+  type        = number
+  default     = 0.3
+}
+
+variable "ollama_keep_alive" {
+  description = "How long Ollama keeps the model loaded."
+  type        = string
+  default     = "30m"
+}
+
+variable "google_client_id" {
+  description = "Google OAuth client ID passed to the backend container."
+  type        = string
+  default     = "774483348931-p8ji6js5ihhgndg06ikk80r0iuoapbsa.apps.googleusercontent.com"
 }
 
 variable "user_data_extra" {

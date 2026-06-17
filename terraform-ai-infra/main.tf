@@ -116,25 +116,37 @@ module "security" {
 module "compute" {
   source = "./modules/compute"
 
-  name_prefix           = local.name_prefix
-  vpc_id                = module.networking.vpc_id
-  public_subnet_ids     = module.networking.public_subnet_ids
-  private_subnet_ids    = module.networking.private_subnet_ids
-  alb_security_group_id = module.security.alb_security_group_id
-  ec2_security_group_id = module.security.ec2_security_group_id
-  instance_profile_name = module.iam.ec2_instance_profile_name
-  ami_id                = var.ami_id
-  instance_type         = var.instance_type
-  key_name              = var.key_name
-  root_volume_size      = var.root_volume_size
-  app_log_group_name    = local.app_log_group_name
-  app_port              = var.app_port
-  user_data_extra       = var.user_data_extra
-  asg_min_size          = var.asg_min_size
-  asg_max_size          = var.asg_max_size
-  asg_desired_capacity  = var.asg_desired_capacity
-  cpu_target_value      = var.cpu_target_value
-  certificate_arn       = var.alb_certificate_arn
+  name_prefix            = local.name_prefix
+  vpc_id                 = module.networking.vpc_id
+  public_subnet_ids      = module.networking.public_subnet_ids
+  private_subnet_ids     = module.networking.private_subnet_ids
+  alb_security_group_id  = module.security.alb_security_group_id
+  ec2_security_group_id  = module.security.ec2_security_group_id
+  instance_profile_name  = module.iam.ec2_instance_profile_name
+  ami_id                 = var.ami_id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
+  root_volume_size       = var.root_volume_size
+  app_log_group_name     = local.app_log_group_name
+  aws_region             = var.region
+  app_port               = var.app_port
+  backend_image          = var.backend_image
+  backend_container_name = var.backend_container_name
+  ollama_image           = var.ollama_image
+  ollama_container_name  = var.ollama_container_name
+  ollama_model           = var.ollama_model
+  ollama_num_ctx         = var.ollama_num_ctx
+  ollama_num_predict     = var.ollama_num_predict
+  ollama_num_thread      = var.ollama_num_thread
+  ollama_temperature     = var.ollama_temperature
+  ollama_keep_alive      = var.ollama_keep_alive
+  google_client_id       = var.google_client_id
+  user_data_extra        = var.user_data_extra
+  asg_min_size           = var.asg_min_size
+  asg_max_size           = var.asg_max_size
+  asg_desired_capacity   = var.asg_desired_capacity
+  cpu_target_value       = var.cpu_target_value
+  certificate_arn        = var.alb_certificate_arn
 }
 
 module "edge" {

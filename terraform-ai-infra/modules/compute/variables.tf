@@ -47,8 +47,56 @@ variable "app_log_group_name" {
   type = string
 }
 
+variable "aws_region" {
+  type = string
+}
+
 variable "app_port" {
   type = number
+}
+
+variable "backend_image" {
+  type = string
+}
+
+variable "backend_container_name" {
+  type = string
+}
+
+variable "ollama_image" {
+  type = string
+}
+
+variable "ollama_container_name" {
+  type = string
+}
+
+variable "ollama_model" {
+  type = string
+}
+
+variable "ollama_num_ctx" {
+  type = number
+}
+
+variable "ollama_num_predict" {
+  type = number
+}
+
+variable "ollama_num_thread" {
+  type = number
+}
+
+variable "ollama_temperature" {
+  type = number
+}
+
+variable "ollama_keep_alive" {
+  type = string
+}
+
+variable "google_client_id" {
+  type = string
 }
 
 variable "user_data_extra" {
